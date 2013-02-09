@@ -17,7 +17,7 @@ Then press Ctrl+Shift+G to get a Popup.
 ### Credits
 This extension uses the following open source components:
 
-* [Github.js](https://github.com/chjj/marked) - A low-level wrapper around the GitHub api
+* [Github.js](https://github.com/michael/github) - A low-level wrapper around the GitHub api
 
 ####Version
 
