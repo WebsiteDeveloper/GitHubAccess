@@ -1,4 +1,4 @@
-## GitHubAcess
+## GitHubAccess
 
 A [Brackets](https://github.com/adobe/brackets) extension that provides access to your GitHub repos inside Brackets
 
