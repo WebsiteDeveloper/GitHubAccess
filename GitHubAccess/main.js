@@ -28,16 +28,27 @@
 define(function (require, exports, module) {
     "use strict";
     
+    brackets.getModule("thirdparty/jstree_pre1.0_fix_1/jquery.jstree");
     
     var AppInit = brackets.getModule("utils/AppInit"),
         CommandManager = brackets.getModule("command/CommandManager"),
         KeyBindingManager = brackets.getModule("command/KeyBindingManager"),
         Dialogs = brackets.getModule("widgets/Dialogs"),
         ProjectManager = brackets.getModule("project/ProjectManager"),
-        Github = require("github").Github;
+        Github = require("github").Github,
+        DocumentManager = brackets.getModule("document/DocumentManager");
 
     var user,
         pass;
+    
+    var _projectInitialLoad = {
+        previous        : [],   /* array of arrays containing full paths to open at each depth of the tree */
+        id              : 0,    /* incrementing id */
+        fullPathToIdMap : {}    /* mapping of fullPath to tree node id attr */
+    },
+    _lastRepo,
+    github,
+    suppressToggleOpen;
     
     console.log('GitHub');
     
@@ -76,7 +87,7 @@ define(function (require, exports, module) {
         console.log(user);
         console.log(pass);
         
-        var github = new Github({
+        github = new Github({
             username: user,
             password: pass,
             auth: "basic"
@@ -84,133 +95,169 @@ define(function (require, exports, module) {
         console.log("Init");
         console.log(github);
         
-        var repository = new github.Repository({user: user, name: "brackets"});
-        repository.show(function (err, repo) {console.log(err); console.log(repo); });
-        repository.getTree("master?recursive=true", function (err, tree) {
-            console.log(tree);
-            var json = getJSONTree(tree, {"path": ""});
-            console.log(json);
-            ProjectManager._renderTree(json);
+        _lastRepo = new github.Repository({user: user, name: "brackets"});
+        _lastRepo.show(function (err, repo) {console.log(err); console.log(repo); });
+        renderTree($("#project-files-container")).done(function() {
+            $("#project-files-container").show(); 
         });
     }
     
-    function getJSONTree(treeArray, firstparent) {
-        var tree = {
-            "data": []
-        };
-        var i, j;
-        var slice, index;
-        var parent = firstparent;
+    function renderTree($projectTreeContainer, jsonData) {
+        var result = new $.Deferred();
+ 
+        $projectTreeContainer.scrollTop(0);
         
-        for(i = 0; i < treeArray.length; i++) {
-            if(!isChild(parent, treeArray[i])) {
-                index = i;
-                break;
-            } else if(isImmidiateChild(parent, treeArray[i]) && treeArray[i].type !== "tree") {
-                tree.data.push({
-                    "data": {
-                        "title": treeArray[i].path,
-                    },
-                    "metadata": {fullpath: treeArray[i].path}
+        $projectTreeContainer.hide();
+        var tree = $projectTreeContainer
+            .jstree({
+                plugins : ["ui", "themes", "json_data", "crrm", "sort"],
+                ui : { select_limit: 1, select_multiple_modifier: "", select_range_modifier: "" },
+                json_data : { data: _treeDataProvider, correct_state: false },
+                core : { animation: 0 },
+                themes : { theme: "brackets", url: "styles/jsTreeTheme.css", dots: false, icons: false },
+                strings : { loading : "Loading ...", new_node : "New node" },
+                sort :  function (a, b) {
+                            if (brackets.platform === "win") {
+                                // Windows: prepend folder names with a '0' and file names with a '1' so folders are listed first
+                                var a1 = ($(a).hasClass("jstree-leaf") ? "1" : "0") + this.get_text(a).toLowerCase(),
+                                b1 = ($(b).hasClass("jstree-leaf") ? "1" : "0") + this.get_text(b).toLowerCase();
+                                return (a1 > b1) ? 1 : -1;
+                            } else {
+                                return this.get_text(a).toLowerCase() > this.get_text(b).toLowerCase() ? 1 : -1;
+                            }
+                        }
+            }).on(
+                "before.jstree",
+                function (event, data) {
+                    if (data.func === "toggle_node") {
+                        // jstree will automaticaly select parent node when the parent is closed
+                        // and any descendant is selected. Prevent the select_node handler from
+                        // immediately toggling open again in this case.
+                        suppressToggleOpen = tree.jstree("is_open", data.args[0]);
+                    }
+                }
+            ).on(
+                "select_node.jstree",
+                function (event, data) {
+                }
+            ).on(
+                "reopen.jstree",
+                function (event, data) {
+                }
+            ).on(
+                "scroll.jstree",
+                function (e) {
+                }
+            ).on(
+                "loaded.jstree open_node.jstree close_node.jstree",
+                function (event, data) {
+                }
+            ).on(
+                "mousedown.jstree",
+                function (event) {
+                }
+            );
+        tree.on("init.jstree", function () {
+            tree.off("dblclick.jstree")
+                .on("dblclick.jstree", function (event) {
                 });
-            } else if(isImmidiateChild(parent, treeArray[i]) && treeArray[i].type === "tree") {
-                var index;
-                for(j = i; j < treeArray.length; j++) {
-                    if(!isChild(treeArray[i], treeArray[j])) {
-                        index = j;
-                        break;
+            $projectTreeContainer.show();
+            DocumentManager.closeAll()
+            $("#project-title").text("GitHub");
+        });
+
+        return result.promise();
+    }
+    
+    function _convertGitHubDataToJSON(data) {
+        var jsonEntryList = [],
+            entry,
+            entryI;
+
+        for (entryI = 0; entryI < data.length; entryI++) {
+            entry = data[entryI];
+            
+            var jsonEntry = {
+                data: entry.path,
+                attr: { id: "node" + _projectInitialLoad.id++ },
+                metadata: { entry: entry }
+            };
+            
+            if (entry.type === "tree") {
+                jsonEntry.children = [];
+                jsonEntry.state = "closed";
+            }
+    
+            // For more info on jsTree's JSON format see: http://www.jstree.com/documentation/json_data
+            jsonEntryList.push(jsonEntry);
+    
+            // Map path to ID to initialize loaded and opened states
+            _projectInitialLoad.fullPathToIdMap[entry.fullPath] = jsonEntry.attr.id;
+        }
+        console.log(jsonEntryList);
+        return jsonEntryList;
+    }
+    
+    function _treeDataProvider(treeNode, jsTreeCallback) {
+        var dirEntry, isProjectRoot = false,treeData;
+
+        if (treeNode === -1) {
+            // Special case: root of tree
+            isProjectRoot = true;
+        } else {
+            // All other nodes: the DirectoryEntry is saved as jQ data in the tree (by _convertEntriesToJSON())
+            dirEntry = treeNode.data("entry");
+        }
+        
+        if(!isProjectRoot) {
+            _lastRepo.getTree(dirEntry.sha, function (err, tree) {
+                console.log(tree);
+                treeData = tree;
+                
+                var subtreeJSON = _convertGitHubDataToJSON(treeData),
+                    wasNodeOpen = false,
+                    emptyDirectory = (subtreeJSON.length === 0);
+                
+                if (emptyDirectory) {
+                    if (!isProjectRoot) {
+                        wasNodeOpen = treeNode.hasClass("jstree-open");
+                    } else {
+                        // project root is a special case, add a placeholder
+                        subtreeJSON.push({});
                     }
                 }
                 
-                tree.data.push({
-                    "data": {
-                        "title": treeArray[i].path,
-                        "icon": "folder"
-                    },
-                    "metadata": {fullpath: treeArray[i].path},
-                    "children": getJSONSubTree(treeArray.slice(i,j), treeArray[i])
-                });
-            }
-        }
-        
-        return tree;
-    }
-    
-    function getJSONSubTree(treeArray, firstparent) {
-        console.log("SubTreeArray:");
-        console.log(treeArray);
-        console.log("Parent:");
-        console.log(firstparent);
-        
-        var tree = [];
-        var i, j;
-        var index;
-        var parent = firstparent;
-        
-        for(i = 0; i < treeArray.length; i++) {
-            if(!isChild(parent, treeArray[i])) {
-                index = i;
-                break;
-            } else if(isImmidiateChild(parent, treeArray[i]) && treeArray[i].type !== "tree") {
-                tree.push({
-                    "data": {
-                        "title": treeArray[i].path
-                    },
-                    "metadata": {fullpath: treeArray[i].path}
-                });
-            } else if(isImmidiateChild(parent, treeArray[i]) && treeArray[i].type === "tree") {
-                var index;
-                for(j = i; j < treeArray.length; j++) {
-                    if(!isChild(treeArray[i], treeArray[j])) {
-                        index = j;
-                        break;
+                jsTreeCallback(subtreeJSON);
+                
+                if (!isProjectRoot && emptyDirectory) {
+                    // If the directory is empty, force it to appear as an open or closed node.
+                    // This is a workaround for issue #149 where jstree would show this node as a leaf.
+                    var classToAdd = (wasNodeOpen) ? "jstree-closed" : "jstree-open";
+                    
+                    treeNode.removeClass("jstree-leaf jstree-closed jstree-open")
+                            .addClass(classToAdd);
+                }
+            });
+        } else {
+            _lastRepo.getTree("master", function (err, tree) {
+                console.log(tree);
+                treeData = tree;
+                
+                var subtreeJSON = _convertGitHubDataToJSON(treeData),
+                    wasNodeOpen = false,
+                    emptyDirectory = (subtreeJSON.length === 0);
+                
+                if (emptyDirectory) {
+                    if (!isProjectRoot) {
+                        wasNodeOpen = treeNode.hasClass("jstree-open");
+                    } else {
+                        // project root is a special case, add a placeholder
+                        subtreeJSON.push({});
                     }
                 }
                 
-                tree.push({
-                    "data": {
-                        "title": treeArray[i].path,
-                        "icon": "folder" 
-                    },
-                    "metadata": {fullpath: treeArray[i].path},
-                    "children": getJSONSubTree(treeArray.slice(i,j), treeArray[i])
-                });
-            }
-        }
-        
-        return tree;
-    }
-    
-    
-    function isChild(parent, child) {
-        if (child.type === "tree") {
-            /*console.log("Tree:");
-            console.log(child.path.substr(0, parent.path.length));
-            console.log(parent.path);*/
-            return (child.path.substr(0, parent.path.length) === parent.path);
-        } else {
-//            console.log("File:");
-//            console.log(child.path.substr(0, parent.path.length));
-//            console.log(parent.path);
-            return (child.path.substr(0, parent.path.length) === parent.path);
-        }
-    }
-    
-    function isImmidiateChild(parent, child) {
-        var temp;
-        
-        if (child.type === "tree") {
-            //console.log("Tree:");
-            temp = child.path.substring(0, child.path.length);
-            //console.log(temp);
-            //console.log(parent.path);
-            //console.log(temp.substring(0, temp.lastIndexOf("/")));
-            return (temp.substring(0, temp.lastIndexOf("/")) === parent.path);
-        } else {
-            //console.log("File:");
-            //console.log(child.path.substr(0, child.path.lastIndexOf("/")));
-            //console.log(parent.path);
-            return (child.path.substr(0, child.path.lastIndexOf("/")) === parent.path);
+                jsTreeCallback(subtreeJSON);
+            });
         }
     }
     
