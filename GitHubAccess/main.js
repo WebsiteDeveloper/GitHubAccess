@@ -22,7 +22,7 @@
  */
 
 /*jslint vars: true, plusplus: true, devel: true, nomen: true, indent: 4, maxerr: 50 */
-/*global define, $, brackets */
+/*global define, $, brackets, Mustache */
 
 
 define(function (require, exports, module) {
@@ -30,13 +30,20 @@ define(function (require, exports, module) {
     
     brackets.getModule("thirdparty/jstree_pre1.0_fix_1/jquery.jstree");
     
-    var AppInit = brackets.getModule("utils/AppInit"),
-        CommandManager = brackets.getModule("command/CommandManager"),
-        KeyBindingManager = brackets.getModule("command/KeyBindingManager"),
-        Dialogs = brackets.getModule("widgets/Dialogs"),
-        ProjectManager = brackets.getModule("project/ProjectManager"),
-        Github = require("github").Github,
-        DocumentManager = brackets.getModule("document/DocumentManager");
+    var AppInit             = brackets.getModule("utils/AppInit"),
+        EditorManager       = brackets.getModule("editor/EditorManager"),
+        CommandManager      = brackets.getModule("command/CommandManager"),
+        Commands            = brackets.getModule("command/Commands"),
+        KeyBindingManager   = brackets.getModule("command/KeyBindingManager"),
+        Dialogs             = brackets.getModule("widgets/Dialogs"),
+        ProjectManager      = brackets.getModule("project/ProjectManager"),
+        DocumentManager     = brackets.getModule("document/DocumentManager"),
+        Resizer             = brackets.getModule("utils/Resizer"),
+        _                   = require("github")._,
+        Github              = require("github").Github;
+    
+    var panelHTML       = require("text!panel.html"),
+        initDialogHTML  = require("text!init-dialog.html");
 
     var user,
         pass;
@@ -46,131 +53,35 @@ define(function (require, exports, module) {
         id              : 0,    /* incrementing id */
         fullPathToIdMap : {}    /* mapping of fullPath to tree node id attr */
     },
-    _lastRepo,
-    github,
-    suppressToggleOpen;
+        _lastRepo,
+        _repoInfo,
+        github,
+        suppressToggleOpen,
+        $panel,
+        $contentArea,
+        panelVisible,
+        _projectTree;
     
     console.log('GitHub');
     
-    function GitHubAccess() {
-        
-        var tmplvars = brackets.getModule("strings");
-        
-        var template1 = '<div id="GitHubExtensionDialog" class="about-dialog modal" ><div class="modal-header"><h1 class="dialog-title">GitHub Extension</h1></div>';
-        var template2 = '<div class="modal-body"><div class="about-text"><h3>Please type in your GitHub data:</h3>';
-        var template3 = '<p><span>Username:&nbsp;</span><input id="GitHubExtension-user" type="text"></p>';
-        var template4 = '<p><span>Password:&nbsp;&nbsp;</span><input id="GitHubExtension-pass" type="password"></p>';
-        var template5 = '</div></div><div class="modal-footer"><a href="#" id="GitHubExtensionSubmit" class="dialog-button btn primary" data-button-id="ok">{{CLOSE}}</a></div></div>';
-        var template = template1 + template2 + template3 + template4 + template5;
-        
-        Dialogs.showModalDialogUsingTemplate(Mustache.render(template, tmplvars), "", "");
-        _handleInitDialogEvents();
-    }
-    
-    function _handleInitDialogEvents() {
-        $('#GitHubExtensionSubmit').on("click", function (event) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            
-            if ($.trim($('#GitHubExtension-user').val()) !== "" && $.trim($('#GitHubExtension-pass').val()) !== "") {
-                user = $.trim($('#GitHubExtension-user').val());
-                pass = $.trim($('#GitHubExtension-pass').val());
-                Dialogs.cancelModalDialogIfOpen('about-dialog');
-                initGitHubConn();
-            } else {
-                console.log("Else");
-            }
-        });
-    }
-    
-    function initGitHubConn() {
-        console.log(user);
-        console.log(pass);
-        
-        github = new Github({
-            username: user,
-            password: pass,
-            auth: "basic"
-        });
-        console.log("Init");
-        console.log(github);
-        
-        _lastRepo = new github.Repository({user: user, name: "brackets"});
-        _lastRepo.show().done(function (repo) {
-            console.log(repo);
-        }).fail(function (err) {
-            console.log(err);
-        });
-        renderTree($("#project-files-container")).done(function() {
-            $("#project-files-container").show(); 
-        });
-    }
-    
-    function renderTree($projectTreeContainer, jsonData) {
-        var result = new $.Deferred();
- 
-        $projectTreeContainer.scrollTop(0);
-        
-        $projectTreeContainer.hide();
-        var tree = $projectTreeContainer
-            .jstree({
-                plugins : ["ui", "themes", "json_data", "crrm", "sort"],
-                ui : { select_limit: 1, select_multiple_modifier: "", select_range_modifier: "" },
-                json_data : { data: _treeDataProvider, correct_state: false },
-                core : { animation: 0 },
-                themes : { theme: "brackets", url: "styles/jsTreeTheme.css", dots: false, icons: false },
-                strings : { loading : "Loading ...", new_node : "New node" },
-                sort :  function (a, b) {
-                            if (brackets.platform === "win") {
-                                // Windows: prepend folder names with a '0' and file names with a '1' so folders are listed first
-                                var a1 = ($(a).hasClass("jstree-leaf") ? "1" : "0") + this.get_text(a).toLowerCase(),
-                                b1 = ($(b).hasClass("jstree-leaf") ? "1" : "0") + this.get_text(b).toLowerCase();
-                                return (a1 > b1) ? 1 : -1;
-                            } else {
-                                return this.get_text(a).toLowerCase() > this.get_text(b).toLowerCase() ? 1 : -1;
-                            }
-                        }
-            }).on(
-                "before.jstree",
-                function (event, data) {
-                    if (data.func === "toggle_node") {
-                        // jstree will automaticaly select parent node when the parent is closed
-                        // and any descendant is selected. Prevent the select_node handler from
-                        // immediately toggling open again in this case.
-                        suppressToggleOpen = tree.jstree("is_open", data.args[0]);
-                    }
-                }
-            ).on(
-                "select_node.jstree",
-                function (event, data) {
-                }
-            ).on(
-                "reopen.jstree",
-                function (event, data) {
-                }
-            ).on(
-                "scroll.jstree",
-                function (e) {
-                }
-            ).on(
-                "loaded.jstree open_node.jstree close_node.jstree",
-                function (event, data) {
-                }
-            ).on(
-                "mousedown.jstree",
-                function (event) {
-                }
-            );
-        tree.on("init.jstree", function () {
-            tree.off("dblclick.jstree")
-                .on("dblclick.jstree", function (event) {
-                });
-            $projectTreeContainer.show();
-            DocumentManager.closeAll()
-            $("#project-title").text("GitHub");
-        });
+    function togglePanel() {
+        if (panelVisible) {
+            $panel.hide();
+        } else {
+            if (!$panel) {
+                $panel = $(panelHTML);
+                $contentArea = $panel.find("#github-status-inf");
+                
+                $panel.insertBefore("#status-bar");
 
-        return result.promise();
+                Resizer.makeResizable($panel, "vert", "top", 100, true);
+                $panel.on("panelResizeUpdate", function (e, newSize) {
+                    $contentArea.css("height", "100%");
+                });
+            }
+            $panel.show();
+        }
+        EditorManager.resizeEditor();
     }
     
     function _convertGitHubDataToJSON(data) {
@@ -202,8 +113,22 @@ define(function (require, exports, module) {
         return jsonEntryList;
     }
     
+    function _redraw(selectionChanged, reveal) {
+        reveal = (reveal === undefined) ? true : reveal;
+        
+
+        // reposition the selection triangle
+        $("#project-files-container").triggerHandler("scroll");
+            
+        // in-lieu of resize events, manually trigger contentChanged for every
+        // FileViewController focus change. This event triggers scroll shadows
+        // on the jstree to update. documentSelectionFocusChange fires when
+        // a new file is added and removed (causing a new selection) from the working set
+        _projectTree.triggerHandler("contentChanged");
+    }
+    
     function _treeDataProvider(treeNode, jsTreeCallback) {
-        var dirEntry, isProjectRoot = false,treeData;
+        var dirEntry, isProjectRoot = false, treeData;
 
         if (treeNode === -1) {
             // Special case: root of tree
@@ -213,7 +138,7 @@ define(function (require, exports, module) {
             dirEntry = treeNode.data("entry");
         }
         
-        if(!isProjectRoot) {
+        if (!isProjectRoot) {
             _lastRepo.getTree(dirEntry.sha).done(function (tree) {
                 treeData = tree;
                 
@@ -265,6 +190,178 @@ define(function (require, exports, module) {
                 console.log(err);
             });
         }
+    }
+    
+    function renderTree($projectTreeContainer) {
+        var result = new $.Deferred();
+        
+        $projectTreeContainer.scrollTop(0);
+        
+        $projectTreeContainer.hide();
+        var tree = $projectTreeContainer
+            .jstree({
+                plugins : ["ui", "themes", "json_data", "crrm", "sort"],
+                ui : { select_limit: 1, select_multiple_modifier: "", select_range_modifier: "" },
+                json_data : { data: _treeDataProvider, correct_state: false },
+                core : { animation: 0 },
+                themes : { theme: "brackets", url: "styles/jsTreeTheme.css", dots: false, icons: false },
+                strings : { loading : "Loading ...", new_node : "New node" },
+                sort :  function (a, b) {
+                    if (brackets.platform === "win") {
+                        // Windows: prepend folder names with a '0' and file names with a '1' so folders are listed first
+                        var a1 = ($(a).hasClass("jstree-leaf") ? "1" : "0") + this.get_text(a).toLowerCase(),
+                            b1 = ($(b).hasClass("jstree-leaf") ? "1" : "0") + this.get_text(b).toLowerCase();
+                        return (a1 > b1) ? 1 : -1;
+                    } else {
+                        return this.get_text(a).toLowerCase() > this.get_text(b).toLowerCase() ? 1 : -1;
+                    }
+                }
+            }).on(
+                "before.jstree",
+                function (event, data) {
+                    if (data.func === "toggle_node") {
+                        // jstree will automaticaly select parent node when the parent is closed
+                        // and any descendant is selected. Prevent the select_node handler from
+                        // immediately toggling open again in this case.
+                        suppressToggleOpen = tree.jstree("is_open", data.args[0]);
+                    }
+                }
+            ).on(
+                "select_node.jstree",
+                function (event, data) {
+                    var entry = data.rslt.obj.data("entry");
+                    if (entry.type !== "tree") {
+                        var openResult = _lastRepo.getSha("master",entry.path);
+                    
+                        openResult.done(function (sha) {
+                            // update when tree display state changes
+                            var data = _lastRepo.getBlob(sha);
+                            data.done(function (data) {
+                                console.log(data);
+                                _redraw(true);
+                            }).fail(function (err) {
+                                console.log(err);
+                                _projectTree.jstree("deselect_all");
+                            });
+                            
+                        }).fail(function (err) {
+                            console.log(err);
+                        });
+                    } else {
+                        FileViewController.setFileViewFocus(FileViewController.PROJECT_MANAGER);
+                        // show selection marker on folders
+                        _redraw(true);
+                        
+                        // toggle folder open/closed
+                        // suppress if this selection was triggered by clicking the disclousre triangle
+                        if (!suppressToggleOpen) {
+                            _projectTree.jstree("toggle_node", data.rslt.obj);
+                        }
+                    }
+                    
+                    suppressToggleOpen = false;
+                }
+            ).on(
+                "reopen.jstree",
+                function (event, data) {
+                }
+            ).on(
+                "scroll.jstree",
+                function (e) {
+                }
+            ).on(
+                "loaded.jstree open_node.jstree close_node.jstree",
+                function (event, data) {
+                }
+            ).on(
+                "mousedown.jstree",
+                function (event) {
+                }
+            );
+        tree.on("init.jstree", function () {
+            tree.off("dblclick.jstree")
+                .on("dblclick.jstree", function (event) {
+                });
+            $projectTreeContainer.show();
+            CommandManager.execute(Commands.FILE_CLOSE_ALL, { promptOnly: false });
+            $("#project-title").text(_repoInfo.full_name);
+        });
+
+        _projectTree = tree;
+        return result.promise();
+    }
+    
+    function initGitHubConn() {
+        var i;
+        
+        console.log(user);
+        console.log(pass);
+        
+        github = new Github({
+            username: user,
+            password: pass,
+            auth: "basic"
+        });
+        console.log("Init");
+        console.log(github);
+        
+        togglePanel();
+        
+        _lastRepo = new github.Repository({user: user, name: "brackets"});
+        _lastRepo.show().done(function (repo) {
+            _repoInfo = repo;
+            console.log(repo);
+            renderTree($("#project-files-container")).done(function () {
+                $("#project-files-container").show();
+            });
+            
+            var text = $("#githubaccess-panel .title").text();
+            $("#githubaccess-panel .title").html(text + "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" + _repoInfo.full_name);
+            _lastRepo.listBranches().done(function (branches) {
+                var selected;
+                branches = _.sortBy(branches, function (string) {
+                    var erg = 0;
+                    for (i = 0; i < string.length; i++) {
+                        erg += string.toLowerCase().charCodeAt(i);
+                    }
+                    return erg;
+                });
+                
+                for (i = 0; i < branches.length; i++) {
+                    selected = ($.trim(branches[i]) === "master") ? "' selected='true" : "";
+                    $("#github-repo-branches").append("<option value='" + branches[i] + selected + "'>" + branches[i] + "</option>");
+                }
+            });
+        }).fail(function (err) {
+            console.log(err);
+        });
+        
+        $(ProjectManager).on("beforeProjectClose", function () {
+            $panel.hide();
+        });
+    }
+    
+    function _handleInitDialogEvents() {
+        $('#GitHubExtensionSubmit').on("click", function (event) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            
+            if ($.trim($('#GitHubExtension-user').val()) !== "" && $.trim($('#GitHubExtension-pass').val()) !== "") {
+                user = $.trim($('#GitHubExtension-user').val());
+                pass = $.trim($('#GitHubExtension-pass').val());
+                Dialogs.cancelModalDialogIfOpen('about-dialog');
+                initGitHubConn();
+            } else {
+                console.log("No Values entered, press enter to close");
+            }
+        });
+    }
+    
+    function GitHubAccess() {
+        var tmplvars = brackets.getModule("strings");
+        
+        Dialogs.showModalDialogUsingTemplate(Mustache.render(initDialogHTML, tmplvars), "", "");
+        _handleInitDialogEvents();
     }
     
     AppInit.htmlReady(function () {
