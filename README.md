@@ -12,7 +12,7 @@ A [Brackets](https://github.com/adobe/brackets) extension that provides access t
 ### How To Use
 This extension is not yet ready to use because it currently lacks the core features.
 You have to expose the _renderTree() Method in the ProjectManager currently if you want to test the extension.
-Then press Ctrl+Shift+G to get a Popup.
+Then press Ctrl+Alt+G to get a Popup.
 
 ### Credits
 This extension uses the following open source components:
