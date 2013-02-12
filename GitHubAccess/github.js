@@ -223,6 +223,8 @@ define(function (require, exports, module) {
                 }).fail(function (err) {
                     deferred.reject(err);
                 });
+                
+                return deferred.promise();
             }
         };
 
@@ -562,4 +564,5 @@ define(function (require, exports, module) {
     Github.prototype.constructor = Github;
       
     exports.Github = Github;
+    exports._      = _;
 });
