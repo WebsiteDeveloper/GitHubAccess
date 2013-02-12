@@ -96,7 +96,11 @@ define(function (require, exports, module) {
         console.log(github);
         
         _lastRepo = new github.Repository({user: user, name: "brackets"});
-        _lastRepo.show(function (err, repo) {console.log(err); console.log(repo); });
+        _lastRepo.show().done(function (repo) {
+            console.log(repo);
+        }).fail(function (err) {
+            console.log(err);
+        });
         renderTree($("#project-files-container")).done(function() {
             $("#project-files-container").show(); 
         });
@@ -194,7 +198,7 @@ define(function (require, exports, module) {
             // Map path to ID to initialize loaded and opened states
             _projectInitialLoad.fullPathToIdMap[entry.fullPath] = jsonEntry.attr.id;
         }
-        console.log(jsonEntryList);
+        
         return jsonEntryList;
     }
     
@@ -210,8 +214,7 @@ define(function (require, exports, module) {
         }
         
         if(!isProjectRoot) {
-            _lastRepo.getTree(dirEntry.sha, function (err, tree) {
-                console.log(tree);
+            _lastRepo.getTree(dirEntry.sha).done(function (tree) {
                 treeData = tree;
                 
                 var subtreeJSON = _convertGitHubDataToJSON(treeData),
@@ -237,10 +240,11 @@ define(function (require, exports, module) {
                     treeNode.removeClass("jstree-leaf jstree-closed jstree-open")
                             .addClass(classToAdd);
                 }
+            }).fail(function (err) {
+                console.log(err);
             });
         } else {
-            _lastRepo.getTree("master", function (err, tree) {
-                console.log(tree);
+            _lastRepo.getTree("master").done(function (tree) {
                 treeData = tree;
                 
                 var subtreeJSON = _convertGitHubDataToJSON(treeData),
@@ -257,14 +261,16 @@ define(function (require, exports, module) {
                 }
                 
                 jsTreeCallback(subtreeJSON);
+            }).fail(function (err) {
+                console.log(err);
             });
         }
     }
     
     AppInit.htmlReady(function () {
-        var commandId = "GitHubExtension.init";
+        var commandId = "GitHubAccess.init";
         
-        CommandManager.register("Initialize GitHubExtension", commandId, GitHubAccess);
-        KeyBindingManager.addBinding(commandId, "Ctrl-Shift-G");
+        CommandManager.register("Initialize GitHubAccess", commandId, GitHubAccess);
+        KeyBindingManager.addBinding(commandId, "Ctrl-Alt-G");
     });
 });
