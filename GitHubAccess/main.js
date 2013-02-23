@@ -28,12 +28,15 @@
 define(function (require, exports, module) {
     "use strict";
     
+    require("jquery-ui-1.10.1.custom.min");
+    
     var PREFERENCES_KEY = "com.brackets.bsiringer.GitHubAccess";
     
     var AppInit             = brackets.getModule("utils/AppInit"),
         CommandManager      = brackets.getModule("command/CommandManager"),
         KeyBindingManager   = brackets.getModule("command/KeyBindingManager"),
         EditorManager       = brackets.getModule("editor/EditorManager"),
+        ExtensionUtils      = brackets.getModule("utils/ExtensionUtils"),
         Dialogs             = brackets.getModule("widgets/Dialogs"),
         ProjectManager      = brackets.getModule("project/ProjectManager"),
         DocumentManager     = brackets.getModule("document/DocumentManager"),
@@ -58,13 +61,15 @@ define(function (require, exports, module) {
     var _lastRepo,
         _repoInfo,
         github,
-        panelVisible,
         currentBranchSha,
         branches,
         currentRootPath,
-        forked = false;
+        forked = false,
+        $progressbar,
+        dialogElements,
+        elementCount;
     
-    console.log('GitHub');
+    console.log("GitHub");
     
     /*function togglePanel() {
         if (panelVisible) {
@@ -86,30 +91,6 @@ define(function (require, exports, module) {
         EditorManager.resizeEditor();
     }*/
     
-    /*function _handleBranchSelection() {
-        _lastSha = $(this).find(":selected").val();
-        currentBranch = $(this).find(":selected").text();
-        renderTree($("#project-files-container"));
-    }*/
-    
-    /*function initGitHubConn() {
-        _lastRepo.show().done(function (repo) {
-            _repoInfo = repo;
-            console.log(repo);
-            renderTree($("#project-files-container"));
-            
-            var text = $("#githubaccess-panel .title").text();
-            $("#githubaccess-panel .title").html(text + "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" + _repoInfo.full_name);
-            
-        }).fail(function (err) {
-            console.log(err);
-        });
-        
-        $(ProjectManager).on("beforeProjectClose", function () {
-            $panel.hide();
-        });
-    }*/
-    
     function handleBranchChange(event) {
         currentBranchSha = $("#github-repo-branches").val();
     }
@@ -118,9 +99,9 @@ define(function (require, exports, module) {
         if (tree.length < 1) {
             return;
         }
-        
-        var element = tree[0];
-        var length = tree.length;
+        var value,
+            element = tree[0],
+            length = tree.length;
         
         if (element.type !== "tree") {
             console.log(element.path);
@@ -128,17 +109,12 @@ define(function (require, exports, module) {
                 entry.createWriter(function (fileWriter) {
                     console.log(entry.fullPath);
                     _lastRepo.getBlob(element.sha).done(function (msg) {
-                        console.log(msg);
                         fileWriter.write(msg);
-                        if (length === 1) {
-                            ProjectManager.openProject(currentRootPath);
-                            StatusBar.hideBusyIndicator();
-                        }
+                        value = $progressbar.progressbar("value");
+                        $progressbar.progressbar("value", value + 1);
                     }).fail(function (error) {
-                        if (length === 1) {
-                            ProjectManager.openProject(currentRootPath);
-                            StatusBar.hideBusyIndicator();
-                        }
+                        value = $progressbar.progressbar("value");
+                        $progressbar.progressbar("value", value + 1);
                     });
                 });
             }, function (error) {
@@ -147,17 +123,12 @@ define(function (require, exports, module) {
         } else {
             console.log(element.path);
             FileSystem.root.getDirectory(element.path, {create: true}, function (entry) {
-                console.log(entry);
-                if (length === 1) {
-                    ProjectManager.openProject(currentRootPath);
-                    StatusBar.hideBusyIndicator();
-                }
+                value = $progressbar.progressbar("value");
+                $progressbar.progressbar("value", value + 1);
             }, function (error) {
                 console.log(error);
-                if (length === 1) {
-                    ProjectManager.openProject(currentRootPath);
-                    StatusBar.hideBusyIndicator();
-                }
+                value = $progressbar.progressbar("value");
+                $progressbar.progressbar("value", value + 1);
             });
         }
         
@@ -166,7 +137,6 @@ define(function (require, exports, module) {
     }
     
     function cloneRepo() {
-        StatusBar.showBusyIndicator(true);
         var deferred = new $.Deferred();
         
         NativeFileSystem.showOpenDialog(false, true, "Select Folder to clone the Repository to", "", null,
@@ -193,8 +163,38 @@ define(function (require, exports, module) {
             NativeFileSystem.requestNativeFileSystem(rootPath, function (FileSystem) {
                 console.log(FileSystem);
                 _lastRepo.getTree(currentBranchSha + "?recursive=true").done(function (tree) {
-                
-                    console.log(tree);
+                    elementCount = tree.length;
+                    dialogElements.$progressbar = $("#github-extension-progressbar");
+                    dialogElements.$progressbarLabel = $("#github-extension-progressbar-label");
+                    dialogElements.$progressbar.css("float", "left")
+                        .css("margin", "10px")
+                        .progressbar({
+                            value: 0,
+                            max: tree.length,
+                            change: function () {
+                                dialogElements.$progressbarLabel.text(((($progressbar.progressbar("value") / elementCount) * 100) + " ").substring(0, 5) + "%");
+                            },
+                            complete: function () {
+                                $progressbar.progressbar("destroy");
+                                dialogElements.$progressbarLabel.hide();
+                                ProjectManager.openProject(currentRootPath);
+                                $(".dialog-button").show();
+                                $("#GitHubExtensionForkSubmit").show();
+                                Dialogs.cancelModalDialogIfOpen("github-fork-dialog");
+                            },
+                            create: function () {
+                                $(".dialog-button").hide();
+                                $("#GitHubExtensionForkSubmit").hide();
+                                dialogElements.$progressbarLabel.text("")
+                                    .css("top", ($progressbar.innerHeight() / 2) - 5)
+                                    .css("left", ($progressbar.innerWidth() / 2) - 30);
+                            },
+                            destroy: function () {
+                                dialogElements.$progressbarLabel.text("")
+                                    .css("top", 0)
+                                    .css("left", 0);
+                            }
+                        });
                     writeTree(tree, FileSystem);
                 });
             });
@@ -205,8 +205,19 @@ define(function (require, exports, module) {
         return deferred.promise();
     }
     
+    function forkIfExternal(url) {
+        var regex     = new RegExp(StringUtils.regexEscape(_user)),
+            deferred  = new $.Deferred();
+        
+        if (url.search(regex) !== -1) {
+        }else {
+            deferred.resolve();
+        }
+        
+        return deferred.promise();
+    }
+    
     function setRepo(url) {
-        var regex = new RegExp(StringUtils.regexEscape(_user));
         var name = (url.lastIndexOf(".") === (url.length - 4)) ? url.substring(url.lastIndexOf("/"), url.lastIndexOf(".")) : url.substr(url.lastIndexOf("/") + 1);
         _lastRepo = new github.Repository({user: _user, name: name});
     }
@@ -218,10 +229,11 @@ define(function (require, exports, module) {
         $("#GitHubExtension-fork-repo").on("click", function (event) {
             event.preventDefault();
             event.stopImmediatePropagation();
-            var url;
+            var url,
+                tempUrl = $.trim($('#GitHubExtension-repourl').val());
             
-            if ($.trim($('#GitHubExtension-repourl').val())) {
-                url = $.trim($('#GitHubExtension-repourl').val());
+            if (tempUrl !== "") {
+                url = tempUrl;
                 
                 setRepo(url);
                 _lastRepo.listBranches().done(function (branchesArray) {
@@ -229,8 +241,9 @@ define(function (require, exports, module) {
                     var selected, i;
                     branches = _.sortBy(branchesArray, function (string) {
                         var erg = 0;
+                        string = string.toLowerCase();
                         for (i = 0; i < string.length; i++) {
-                            erg += string.toLowerCase().charCodeAt(i);
+                            erg += string.charCodeAt(i);
                         }
                         return erg;
                     });
@@ -239,12 +252,12 @@ define(function (require, exports, module) {
                     
                     for (i = 0; i < branches.length; i++) {
                         if ($.trim(branches[i].name) === "master") {
-                            selected = "' selected='true";
+                            selected = "\" selected=\"true";
                             branches[i].object.sha = "master";
                         } else {
-                            selected = "'";
+                            selected = "\"";
                         }
-                        $("#github-repo-branches").append("<option value='" + branches[i].object.sha + selected + ">" + branches[i].name + "</option>")
+                        $("#github-repo-branches").append("<option value=\"" + branches[i].object.sha + selected + ">" + branches[i].name + "</option>")
                                 .on("change", handleBranchChange);
                     }
                     currentBranchSha = $("#github-repo-branches").val();
@@ -252,13 +265,14 @@ define(function (require, exports, module) {
                     $("#GitHubExtensionForkSubmit").on("click", function (event) {
                         event.preventDefault();
                         event.stopImmediatePropagation();
-                        Dialogs.cancelModalDialogIfOpen("github-fork-dialog");
                         cloneRepo().done(function (rootPath) {
                             currentRootPath = rootPath;
                         }).fail(function () {
                             console.log("Error while cloning the repo");
                         });
                     });
+                }).fail(function (error) {
+                    console.error(error);
                 });
             } else {
                 console.log("No Values entered, press enter to close");
@@ -271,14 +285,16 @@ define(function (require, exports, module) {
     function _handleInitDialogEvents() {
         var deferred = $.Deferred();
         
-        $('#GitHubExtensionSubmit').on("click", function (event) {
+        $("#GitHubExtensionSubmit").on("click", function (event) {
             event.preventDefault();
             event.stopImmediatePropagation();
+            var user = $.trim($("#GitHubExtension-user").val()),
+                pass = $.trim($("#GitHubExtension-pass").val());
             
-            if ($.trim($('#GitHubExtension-user').val()) !== "" && $.trim($('#GitHubExtension-pass').val()) !== "") {
-                _user = $.trim($('#GitHubExtension-user').val());
-                _pass = $.trim($('#GitHubExtension-pass').val());
-                Dialogs.cancelModalDialogIfOpen('github-login-dialog');
+            if (user !== "" && pass !== "") {
+                _user = user;
+                _pass = pass;
+                Dialogs.cancelModalDialogIfOpen("github-login-dialog");
                 var credencials = { user: _user, password: _pass };
                 _prefStorage.setValue("credentials", credencials);
                 
@@ -290,7 +306,7 @@ define(function (require, exports, module) {
                 
                 showForkDialog();
             } else {
-                console.err("No Values entered, press enter to close");
+                console.log("No Values entered, press enter to close");
             }
         });
         
@@ -318,6 +334,8 @@ define(function (require, exports, module) {
     }
     
     AppInit.htmlReady(function () {
+        ExtensionUtils.loadStyleSheet(module, "css/jquery-ui-1.10.1.custom.min.css");
+        
         var commandId = "GitHubAccess.init";
         
         CommandManager.register("Initialize GitHubAccess", commandId, GitHubAccess);
