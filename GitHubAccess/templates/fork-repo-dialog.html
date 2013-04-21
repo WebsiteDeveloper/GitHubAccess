@@ -1,0 +1,26 @@
+<div id="GitHubExtensionDialog" class="github-fork-dialog modal" >
+    <div class="modal-header">
+        <h1 class="dialog-title">GitHub Extension</h1>
+    </div>
+    <div class="modal-body">
+        <div id="GitHubExtensionForkBody" class="about-text">
+            <h3>Please type in a link to the Repository you want to fork/open and clone:</h3>
+            <p>
+                <span>GithubRepo:</span><input id="GitHubExtension-repourl" type="text">
+            </p>
+            <p>
+                <a href="#" id="GitHubExtension-fork-repo" class="dialog-button">Fork and load branches</a>
+            </p>
+        </div>
+        <div style="position: relative;">
+        <div id="github-extension">
+            <span id="github-extension-progressbar-label" style="position: absolute;"></span>
+            <div id="github-extension-progressbar" style="width: 500px;"></div>
+        </div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <a href="#" class="dialog-button btn left" data-button-id="cancel">{{CANCEL}}</a>
+        <a href="#" id="GitHubExtensionForkSubmit" class="dialog-button btn primary" data-button-id="ok">{{OK}}</a>
+    </div>
+</div>

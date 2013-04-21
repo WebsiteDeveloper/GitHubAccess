@@ -194,7 +194,10 @@ define(function (require, exports, module) {
             var deferred = new $.Deferred();
           
             Github.prototype._request("GET", repoPath + "/git/refs/heads", null).done(function (heads) {
-                deferred.resolve(_.map(heads, function (head) { return _.last(head.ref.split('/')); }));
+                deferred.resolve(_.map(heads, function (head) {
+                    head.name = head.ref.replace(/^refs\/heads\//, "");
+                    return head;
+                }));
             }).fail(function (err) {
                 deferred.reject(err);
             });
@@ -212,12 +215,18 @@ define(function (require, exports, module) {
         // -------
         this.getSha = function (branch, path) {
             // Just use head if path is empty
+            if (typeof branch !== "string") {
+                branch = branch.object.sha;
+            }
+            
             if (path === "") {
                 return that.getRef("heads/" + branch);
             } else {
                 var deferred = new $.Deferred();
             
+                console.log(branch);
                 this.getTree(branch + "?recursive=true").done(function (tree) {
+                    console.log(tree);
                     var file = _.select(tree, function (file) { return file.path === path; })[0];
                     deferred.resolve(file ? file.sha : null);
                 }).fail(function (err) {
