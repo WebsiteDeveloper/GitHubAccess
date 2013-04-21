@@ -29,7 +29,10 @@ define(function (require, exports, module) {
     "use strict";
     
     var AppInit             = brackets.getModule("utils/AppInit"),
-        GitHubManager       = require("GitHubManager").GitHubManager;
+        CommandManager      = brackets.getModule("command/CommandManager"),
+        ExtensionUtils      = brackets.getModule("utils/ExtensionUtils"),
+        GitHubManager       = require("GitHubManager").GitHubManager,
+        KeyBindingManager   = brackets.getModule("command/KeyBindingManager");
     
     AppInit.htmlReady(function () {
         ExtensionUtils.loadStyleSheet(module, "css/jquery-ui-1.10.1.custom.min.css");

@@ -39,9 +39,9 @@ define(function (require, exports, module) {
         StringUtils         = brackets.getModule("utils/StringUtils"),
         _                   = require("github")._,
         Github              = require("github").Github,
-        panelHTML           = require("templates/text!panel.html"),
-        loginDialogHTML     = require("templates/text!login-dialog.html"),
-        forkDialogHTML      = require("templates/text!fork-repo-dialog.html"),
+        panelHTML           = require("text!templates/panel.html"),
+        loginDialogHTML     = require("text!templates/login-dialog.html"),
+        forkDialogHTML      = require("text!templates/fork-repo-dialog.html"),
         currentRepo,
         userData = {username: "", password: ""},
         prefStorage;
@@ -53,8 +53,10 @@ define(function (require, exports, module) {
         branches,
         currentRootPath,
         forked = false,
-        $progressbar,
-        dialogElements,
+        dialogElements = {
+            $progressbar: null,
+            $progressbarLabel: null
+        },
         elementCount;
     
     function GitHubManager() {
@@ -69,31 +71,29 @@ define(function (require, exports, module) {
             length = tree.length;
         
         if (element.type !== "tree") {
-            console.log(element.path);
             FileSystem.root.getFile(element.path, {create: true}, function (entry) {
                 entry.createWriter(function (fileWriter) {
-                    console.log(entry.fullPath);
                     _lastRepo.getBlob(element.sha).done(function (msg) {
                         fileWriter.write(msg);
-                        value = $progressbar.progressbar("value");
-                        $progressbar.progressbar("value", value + 1);
+                        value = dialogElements.$progressbar.progressbar("value");
+                        dialogElements.$progressbar.progressbar("value", value + 1);
                     }).fail(function (error) {
-                        value = $progressbar.progressbar("value");
-                        $progressbar.progressbar("value", value + 1);
+                        value = dialogElements.$progressbar.progressbar("value");
+                        dialogElements.$progressbar.progressbar("value", value + 1);
+                        console.log(error);
                     });
                 });
             }, function (error) {
                 console.log(error);
             });
         } else {
-            console.log(element.path);
             FileSystem.root.getDirectory(element.path, {create: true}, function (entry) {
-                value = $progressbar.progressbar("value");
-                $progressbar.progressbar("value", value + 1);
+                value = dialogElements.$progressbar.progressbar("value");
+                dialogElements.$progressbar.progressbar("value", value + 1);
             }, function (error) {
                 console.log(error);
-                value = $progressbar.progressbar("value");
-                $progressbar.progressbar("value", value + 1);
+                value = dialogElements.$progressbar.progressbar("value");
+                dialogElements.$progressbar.progressbar("value", value + 1);
             });
         }
         
@@ -127,7 +127,6 @@ define(function (require, exports, module) {
         deferred.promise().done(function (rootPath) {
             var sha;
             NativeFileSystem.requestNativeFileSystem(rootPath, function (FileSystem) {
-                console.log(FileSystem);
                 _lastRepo.getTree(currentBranchSha + "?recursive=true").done(function (tree) {
                     elementCount = tree.length;
                     dialogElements.$progressbar = $("#github-extension-progressbar");
@@ -138,10 +137,10 @@ define(function (require, exports, module) {
                             value: 0,
                             max: tree.length,
                             change: function () {
-                                dialogElements.$progressbarLabel.text(((($progressbar.progressbar("value") / elementCount) * 100) + " ").substring(0, 5) + "%");
+                                dialogElements.$progressbarLabel.text((((dialogElements.$progressbar.progressbar("value") / elementCount) * 100) + " ").substring(0, 5) + "%");
                             },
                             complete: function () {
-                                $progressbar.progressbar("destroy");
+                                dialogElements.$progressbar.progressbar("destroy");
                                 dialogElements.$progressbarLabel.hide();
                                 ProjectManager.openProject(currentRootPath);
                                 $(".dialog-button").show();
@@ -152,8 +151,8 @@ define(function (require, exports, module) {
                                 $(".dialog-button").hide();
                                 $("#GitHubExtensionForkSubmit").hide();
                                 dialogElements.$progressbarLabel.text("")
-                                    .css("top", ($progressbar.innerHeight() / 2) - 5)
-                                    .css("left", ($progressbar.innerWidth() / 2) - 30);
+                                    .css("top", (dialogElements.$progressbar.innerHeight() / 2) - 5)
+                                    .css("left", (dialogElements.$progressbar.innerWidth() / 2) - 30);
                             },
                             destroy: function () {
                                 dialogElements.$progressbarLabel.text("")
@@ -229,9 +228,9 @@ define(function (require, exports, module) {
                 _lastRepo.listBranches().done(function (branchesArray) {
                     branches = branchesArray;
                     var selected, i;
-                    branches = _.sortBy(branchesArray, function (string) {
-                        var erg = 0;
-                        string = string.toLowerCase();
+                    branches = _.sortBy(branchesArray, function (branchObj) {
+                        var erg = 0,
+                            string = branchObj.name.toLowerCase();
                         for (i = 0; i < string.length; i++) {
                             erg += string.charCodeAt(i);
                         }
@@ -255,7 +254,7 @@ define(function (require, exports, module) {
                     $("#GitHubExtensionForkSubmit").on("click", function (event) {
                         event.preventDefault();
                         event.stopImmediatePropagation();
-                        cloneRepo().done(function (rootPath) {
+                        GitHubManager.prototype.cloneRepo().done(function (rootPath) {
                             currentRootPath = rootPath;
                         }).fail(function () {
                             console.log("Error while cloning the repo");
@@ -272,7 +271,7 @@ define(function (require, exports, module) {
         
     }
     
-    function _handleInitDialogEvents() {
+    GitHubManager.prototype._handleInitDialogEvents = function _handleInitDialogEvents() {
         var deferred = $.Deferred();
         
         $("#GitHubExtensionSubmit").on("click", function (event) {
@@ -301,13 +300,13 @@ define(function (require, exports, module) {
         });
         
         return deferred.promise();
-    }
+    };
     
     GitHubManager.prototype.init = function () {
         forked = false;
         if (!prefStorage.getValue("credentials")) {
             Dialogs.showModalDialogUsingTemplate(Mustache.render(loginDialogHTML, Strings), "", "");
-            _handleInitDialogEvents();
+            this._handleInitDialogEvents();
         } else {
             var credencials = prefStorage.getValue("credentials");
             userData.username = credencials.username;
