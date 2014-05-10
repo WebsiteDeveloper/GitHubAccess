@@ -1,12 +1,12 @@
 {
     "name": "bsirlinger.github-access",
     "title": "GitHubAccess",
-    "description": "Allows you to clone any of your github repos via Ctrl+Alt+G",
+    "description": "Allows you to clone any github repo to your local filesystem via Ctrl+Alt+G",
     "homepage": "https://github.com/WebsiteDeveloper/GitHubAccess",
-    "version": "0.1",
+    "version": "0.2.0",
     "author": "Bernhard Sirlinger <bernhard@sirlinger.de> (https://github.com/WebsiteDeveloper)",
     "license": "MIT",
     "engines": {
-        "brackets": "<=0.27.0"
+        "brackets": ">=0.38.0"
     }
 }
