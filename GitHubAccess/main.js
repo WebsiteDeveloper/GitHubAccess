@@ -35,7 +35,7 @@ define(function (require, exports, module) {
         KeyBindingManager   = brackets.getModule("command/KeyBindingManager");
     
     AppInit.htmlReady(function () {
-        ExtensionUtils.loadStyleSheet(module, "css/jquery-ui-1.10.1.custom.min.css");
+        ExtensionUtils.loadStyleSheet(module, "css/main.css");
         
         var commandId = "GitHubAccess.init";
         

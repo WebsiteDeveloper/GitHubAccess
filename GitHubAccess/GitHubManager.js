@@ -27,16 +27,14 @@
 define(function (require, exports, module) {
     "use strict";
     var Dialogs             = brackets.getModule("widgets/Dialogs"),
-        NativeFileSystem    = brackets.getModule("file/NativeFileSystem").NativeFileSystem,
+        FileSystem          = brackets.getModule("filesystem/FileSystem"),
         PreferencesManager  = brackets.getModule("preferences/PreferencesManager"),
         ProjectManager      = brackets.getModule("project/ProjectManager"),
         Strings             = brackets.getModule("strings"),
         StringUtils         = brackets.getModule("utils/StringUtils"),
-        _                   = brackets.getModule("lodash"),
+        _                   = brackets.getModule("thirdparty/lodash"),
         Octokit             = require('octokit'),
-        panelHTML           = require("text!templates/panel.html"),
-        loginDialogHTML     = require("text!templates/login-dialog.html"),
-        forkDialogHTML      = require("text!templates/fork-repo-dialog.html");
+        cloneDialog         = require("text!templates/clone-dialog.html");
     
     function GitHubManager() {
     }
@@ -48,7 +46,118 @@ define(function (require, exports, module) {
     GitHubManager.prototype.cloneRepo = function (rootPath) {
     };
     
+    GitHubManager.prototype.selectFilePathHandler = function (event) {
+        
+    };
+    
+    GitHubManager.prototype.addSelectMenueForArray = function ($element, array) {
+        var htmlString = "",
+            length = array.length,
+            i;
+        
+        for (i = 0; i < length; i++) {
+            htmlString += "<option value='" + array[i] + "'>" + array[i] + "</option>";
+        }
+        
+        $element.html(htmlString);
+    };
+    
+    GitHubManager.prototype.buildBranchArray = function (rawBranches) {
+        var branches = [];
+        
+        _.forEach(rawBranches, function (subBranches) {
+            subBranches.splice(0, 2);
+            branches = branches.concat(subBranches);
+        });
+        
+        return branches;
+    };
+    
     GitHubManager.prototype.init = function () {
+        var gh   = new Octokit(),
+            self = new GitHubManager(),
+            repo,
+            templateVars,
+            dlg,
+            $dlg;
+        
+        templateVars = {
+            "title": "Clone Dialog",
+            "buttons": [{
+                "className": "left cancel",
+                "id": "cancel",
+                "text": "Cancel"
+            }, {
+                "className": "primary githubaccess-clone",
+                "disabled": "disabled",
+                "id": "clone",
+                "text": "Clone Repository"
+            }]
+        };
+        
+        dlg = Dialogs.showModalDialogUsingTemplate(Mustache.render(cloneDialog, templateVars), false);
+        
+        $dlg = dlg.getElement();
+        
+        $dlg.find("button.get-branches").on("click", function (event) {
+            var value = $dlg.find("input.repo").val().trim();
+            
+            if (value !== "") {
+                repo = gh.getRepo(value.split("/")[0], value.split("/")[1]);
+                repo.getBranches().then(function (branches) {
+                    branches = self.buildBranchArray(branches);
+                    
+                    var $step  = $dlg.find("div.step1"),
+                        $input;
+                    $step.html("<label>Branch to Clone:</label><select style='margin-left: 0;' class='branch-selection'></select><br><input type='text' placeholder='Folder to clone repo to'><button class='btn select-folder' data-button-id='select-folder'>Select Folder</button>");
+                    
+                    self.addSelectMenueForArray($step.find("select.branch-selection"), branches);
+                    $input = $step.find("input");
+                    
+                    $step.find("button.select-folder").on("click", function () {
+                        FileSystem.showOpenDialog(false, true, "Choose target path", null, [], function (error, dir) {
+                            if (!error && dir) {
+                                $input.val(dir);
+                                $input.change();
+                            }
+                        });
+                    });
+                    
+                    $input.on("keydown change", function () {
+                        if ($(this).val().trim() !== "") {
+                            $dlg.find(".githubaccess-clone").removeAttr("disabled");
+                        } else {
+                            $dlg.find(".githubaccess-clone").attr("disabled");
+                        }
+                    });
+                    
+                }, function (answer) {
+                    var message;
+                    
+                    try {
+                        message = JSON.parse(answer.error).message;
+                    } catch (err) {
+                        message = "An internal Error occured.";
+                    }
+                    
+                    $dlg.find(".errors").html("<div class='error'>Error: " + message + "</div>");
+                });
+            }
+        });
+        
+        $dlg.on("buttonClick", function (event, id) {
+            if (id === "cancel") {
+                Dialogs.cancelModalDialogIfOpen("github-access", "cancel");
+            } else if (id === "clone") {
+                console.log("Cloning...");
+                console.log(repo);
+                console.log("To: " + $dlg.find("div.step1").find("input").val());
+                Dialogs.cancelModalDialogIfOpen("github-access", "clone");
+            }
+        });
+        
+        dlg.done(function (id) {
+        });
     };
     
     /*Exporting GitHubManager*/

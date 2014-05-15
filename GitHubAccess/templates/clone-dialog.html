@@ -1,0 +1,24 @@
+<div class="github-access template modal">
+    <div class="modal-header">
+        <h1 class="dialog-title">{{title}}</h1>
+    </div>
+    <div class="modal-body">
+        <div class="dialog-message">
+            <div class="errors">
+            </div>
+            <div class="step0 form-horizontal">
+                <label for="repo">Repository to clone:</label><input class="repo" placeholder="User/Repository" type="text" pattern="(\w)+/(\w)+" required><br>
+                <button class="btn get-branches" data-button-id="get-branches">Get branches for Repository</button>
+            </div><br/>
+            <div class="step1 form-horizontal">
+            </div><br/>
+            <div class="step2 form-horizontal">
+            </div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        {{#buttons}}
+        <button {{disabled}} class="dialog-button btn {{className}}" data-button-id="{{id}}">{{{text}}}</button>
+        {{/buttons}}
+    </div>
+</div>
