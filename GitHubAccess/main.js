@@ -34,8 +34,11 @@ define(function (require, exports, module) {
         GitHubManager       = require("GitHubManager").GitHubManager,
         KeyBindingManager   = brackets.getModule("command/KeyBindingManager");
     
+    require("thirdparty/chosen.jquery");
+    
     AppInit.htmlReady(function () {
         ExtensionUtils.loadStyleSheet(module, "css/main.css");
+        ExtensionUtils.loadStyleSheet(module, "css/chosen.min.css");
         
         var commandId = "GitHubAccess.init";
         

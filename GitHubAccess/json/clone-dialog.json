@@ -1,0 +1,13 @@
+{
+    "title": "Clone Dialog",
+    "buttons": [{
+        "className": "left cancel",
+        "id": "cancel",
+        "text": "Cancel"
+    }, {
+        "className": "primary githubaccess-clone",
+        "disabled": "disabled",
+        "id": "clone",
+        "text": "Clone Repository"
+    }]
+}
