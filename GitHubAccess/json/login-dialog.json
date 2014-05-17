@@ -1,0 +1,12 @@
+{
+    "title": "Authenticate to Github",
+    "buttons": [{
+        "className": "left cancel",
+        "id": "cancel",
+        "text": "Cancel"
+    }, {
+        "className": "primary githubaccess-login",
+        "id": "login",
+        "text": "Login"
+    }]
+}

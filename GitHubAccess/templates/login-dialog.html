@@ -1,20 +1,28 @@
-<div id="GitHubExtensionDialog" class="github-login-dialog modal" >
+<div class="github-access-login modal template" >
     <div class="modal-header">
-        <h1 class="dialog-title">GitHub Extension</h1>
+        <h1 class="dialog-title">{{title}}</h1>
     </div>
     <div class="modal-body">
-        <div class="about-text">
-            <h3>Please type in your GitHub data:</h3>
+        <div class="dialog-message">
             <p>
-                <span>Username:&nbsp;</span><input id="GitHubExtension-user" type="text">
+                Please fill in eiter you Username and Password or use an Oauth Token (for info how to generate these please visit <a href="#">this wiki site</a>)
             </p>
-            <p>
-                <span>Password:&nbsp;&nbsp;</span><input id="GitHubExtension-pass" type="password">
-            </p>
+            <div class="oauth-auth form-horizontal">
+                <label for="repo">Oauth Token:</label>
+                <input type='text' placeholder='Token'>
+            </div>
+            <div class="basic-auth form-horizontal">
+                <label for="repo">Username:</label>
+                <input type='text' placeholder='Username'>
+                <label for="repo">Password:</label>
+                <input type='password' placeholder='Password'>
+            </div>
+            <input type="checkbox" name="remember" value="Remember login">
         </div>
     </div>
     <div class="modal-footer">
-        <button class="dialog-button btn left" data-button-id="cancel">{{CANCEL}}</button>
-        <button class="dialog-button btn primary" disabled data-button-id="login">Login</button>
+        {{#buttons}}
+        <button class="dialog-button btn {{className}}" data-button-id="{{id}}">{{{text}}}</button>
+        {{/buttons}}
     </div>
 </div>
