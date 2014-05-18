@@ -42,16 +42,53 @@ define(function (require, exports, module) {
     function GitHubManager() {
     }
     
-    GitHubManager.prototype.writeTree = function (tree, FileSystem) {
+    GitHubManager.prototype.targetPath = "";
+    
+    GitHubManager.prototype.writeTree = function (branch, tree, directory, progressCallback) {
+        var i = 0;
+        console.log(tree);
+        function writer(contents) {
+            var file = FileSystem.getFileForPath(directory._path + this.path);
+            
+            file.write(contents);
         
+            progressCallback();
+        }
+        
+        function writeDir(path) {
+            var dir = FileSystem.getDirectoryForPath(path);
+            
+            dir.create();
+            
+            progressCallback();
+        }
+        
+        for (i = 0; i < tree.length; i++) {
+            if (tree[i].type === "blob") {
+                branch.contents(tree[i].path).then($.proxy(writer, tree[i]), function () {
+                    console.log(arguments);
+                });
+            } else {
+                writeDir(directory._path + tree[i].path);
+            }
+        }
     };
     
-    GitHubManager.prototype.cloneRepo = function (repo, branch, targetPath) {
-        repo.git.getTree("master", {
+    GitHubManager.prototype.cloneRepo = function (repo, branch) {
+        repo.git.getTree(branch, {
             recursive: true
-        }).then(function (tree) {
-            console.log(tree);
-        });
+        }).then($.proxy(function (tree) {
+            console.log(this.targetPath);
+            
+            var length = tree.length,
+                i = 0,
+                dir = FileSystem.getDirectoryForPath(this.targetPath);
+            
+            this.writeTree(repo.getBranch(branch), tree, dir, function () {
+                i++;
+                console.log((i / length) * 100 + "%");
+            });
+        }, this));
     };
     
     GitHubManager.prototype.addSelectMenueForArray = function ($element, array) {
@@ -139,16 +176,17 @@ define(function (require, exports, module) {
             if (id === "cancel") {
                 Dialogs.cancelModalDialogIfOpen("github-access", "cancel");
             } else if (id === "clone") {
-                self.cloneRepo(repo, $dlg.find(".branch-selection").val(), $dlg.find("div.step1").find("input").val());
+                self.targetPath = $dlg.find("div.step1").find("input.target-path").val();
+                self.cloneRepo(repo, $dlg.find(".branch-selection").val());
                 Dialogs.cancelModalDialogIfOpen("github-access", "clone");
             }
         });
     };
     
     GitHubManager.prototype.checkLoginData = function ($element) {
-        //TODO: Actual validity checking
+        var valid = ($element.find("input.oauth-token").val().trim().length === 40);
         
-        return true;
+        return valid;
     };
     
     GitHubManager.prototype.init = function () {
