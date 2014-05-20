@@ -34,7 +34,7 @@ define(function (require, exports, module) {
         loginDialog         = require("text!templates/login-dialog.html"),
         cloneDialogData     = require("text!json/clone-dialog.json"),
         loginDialogData     = require("text!json/login-dialog.json"),
-        prefs = PreferencesManager.getExtensionPrefs("bsirlinger.github-access");
+        prefs               = PreferencesManager.getExtensionPrefs("bsirlinger.github-access");
     
     function GitHubManager() {
     }

@@ -1,25 +1,21 @@
 ## GitHubAccess
 
-A [Brackets](https://github.com/adobe/brackets) extension that provides access to your GitHub repos inside Brackets
+A [Brackets](https://github.com/adobe/brackets) extension that allows you to clone any Github repo to your local Filesystem.
 
-### Installation
-
-* Download and unzip it; or clone this repo on GitHub.
-* From Brackets, choose _Help > Show Extensions Folder_. This will open the extensions folder.
-* Drag the unzipped (or cloned) folder into the `user` directory.
-* Restart Brackets.
+**It does currently not work with binary files.**
 
 ### How To Use
-This extension is not yet ready to use because it currently lacks the core features.
-You can Test it by pressing Ctrl+Alt+G then you will get a dialog now put in your 
-Username and Password and click the close button, this will open your brackets fork 
-in the project tree. 
+Press Ctrl-Alt-G (Mac: Cmd-Alt-G) to open the login Dialog.
 
 ### Credits
 This extension uses the following open source components:
 
-* [Github.js](https://github.com/michael/github) - A low-level wrapper around the GitHub api
+* [octokit.js](https://github.com/philschatz/octokit.js) - An Unofficial client for the Github API using CommonJS Promises. Intended for the browser or as a NodeJS package
 
 ####Version
 
-First Release: 0.01alpha
+#####0.2
+* Update to work with brackets Sprint 38 and onwards
+* Use octokit.js
+* Change to Oauth token authentication
+* Drop deprecated FileSystem Api
