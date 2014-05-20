@@ -28,16 +28,13 @@ define(function (require, exports, module) {
     var Dialogs             = brackets.getModule("widgets/Dialogs"),
         FileSystem          = brackets.getModule("filesystem/FileSystem"),
         PreferencesManager  = brackets.getModule("preferences/PreferencesManager"),
-        PromiseQueue        = brackets.getModule("utils/Async").PromiseQueue,
-        ProjectManager      = brackets.getModule("project/ProjectManager"),
-        Strings             = brackets.getModule("strings"),
-        StringUtils         = brackets.getModule("utils/StringUtils"),
         _                   = brackets.getModule("thirdparty/lodash"),
         Octokit             = require("octokit"),
         cloneDialog         = require("text!templates/clone-dialog.html"),
         loginDialog         = require("text!templates/login-dialog.html"),
         cloneDialogData     = require("text!json/clone-dialog.json"),
-        loginDialogData     = require("text!json/login-dialog.json");
+        loginDialogData     = require("text!json/login-dialog.json"),
+        prefs = PreferencesManager.getExtensionPrefs("bsirlinger.GitHubAccess");
     
     function GitHubManager() {
     }
@@ -190,12 +187,26 @@ define(function (require, exports, module) {
     };
     
     GitHubManager.prototype.init = function () {
+        prefs.definePreference("token", "string", "");
+        
         var gh,
             self = new GitHubManager(),
             repo,
             templateVars,
             dlg,
-            $dlg;
+            $dlg,
+            temp;
+        
+        temp = prefs.get("token");
+        
+        if (temp.length === 40) {
+            gh = new Octokit({
+                token: temp
+            });
+            
+            self.openCloneDialog(gh, self);
+            return;
+        }
         
         templateVars = JSON.parse(loginDialogData);
         
@@ -210,10 +221,16 @@ define(function (require, exports, module) {
                 var valid = self.checkLoginData($dlg);
                 
                 if (valid) {
+                    var token = $dlg.find("input.oauth-token").val();
+                    
                     gh = new Octokit({
-                        token: $dlg.find("input.oauth-token").val()
+                        token: token
                     });
                     
+                    if ($dlg.find("input:checked").size() === 1) {
+                        prefs.set("token", token);
+                        prefs.save();
+                    }
                     
                     Dialogs.cancelModalDialogIfOpen("github-access-login", "login");
                     self.openCloneDialog(gh, self);
