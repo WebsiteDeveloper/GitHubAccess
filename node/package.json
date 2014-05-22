@@ -1,0 +1,10 @@
+{
+  "name": "",
+  "description": "",
+  "main": "octokit.js",
+  "dependencies": {
+    "octokit": "0.10.x",
+    "jquery": "*"
+  },
+  "author": "Bernhard Sirlinger"
+}

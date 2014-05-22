@@ -28,6 +28,8 @@ define(function (require, exports, module) {
     var Dialogs             = brackets.getModule("widgets/Dialogs"),
         FileSystem          = brackets.getModule("filesystem/FileSystem"),
         PreferencesManager  = brackets.getModule("preferences/PreferencesManager"),
+        NodeDomain          = brackets.getModule("utils/NodeDomain"),
+        ExtensionUtils      = brackets.getModule("utils/ExtensionUtils"),
         _                   = brackets.getModule("thirdparty/lodash"),
         Octokit             = require("octokit"),
         cloneDialog         = require("text!templates/clone-dialog.html"),
@@ -35,6 +37,10 @@ define(function (require, exports, module) {
         cloneDialogData     = require("text!json/clone-dialog.json"),
         loginDialogData     = require("text!json/login-dialog.json"),
         prefs               = PreferencesManager.getExtensionPrefs("bsirlinger.github-access");
+
+    var domain = new NodeDomain("github-access", ExtensionUtils.getModulePath(module, "node/GitHubAccessDomain")),
+        globalToken;
+
     
     function GitHubManager() {
     }
@@ -43,7 +49,7 @@ define(function (require, exports, module) {
     
     GitHubManager.prototype.writeTree = function (branch, tree, directory, progressCallback) {
         var i = 0;
-        console.log(tree);
+        
         function writer(contents) {
             var file = FileSystem.getFileForPath(directory._path + this.path);
             
@@ -71,11 +77,17 @@ define(function (require, exports, module) {
         }
     };
     
-    GitHubManager.prototype.cloneRepo = function (repo, branch) {
+    GitHubManager.prototype.cloneRepo = function (repoName, repo, branch, targetDir) {
+        domain.exec("cloneRepo", globalToken,repoName, branch, targetDir)
+        .done(function (result) {
+            console.log(result);
+        }).fail(function (err) {
+            console.error(err);
+        });
+        /*
         repo.git.getTree(branch, {
             recursive: true
         }).then($.proxy(function (tree) {
-            console.log(this.targetPath);
             
             var length = tree.length,
                 i = 0,
@@ -85,7 +97,7 @@ define(function (require, exports, module) {
                 i++;
                 console.log((i / length) * 100 + "%");
             });
-        }, this));
+        }, this));*/
     };
     
     GitHubManager.prototype.addSelectMenueForArray = function ($element, array) {
@@ -173,8 +185,10 @@ define(function (require, exports, module) {
             if (id === "cancel") {
                 Dialogs.cancelModalDialogIfOpen("github-access", "cancel");
             } else if (id === "clone") {
-                self.targetPath = $dlg.find("div.step1").find("input.target-path").val();
-                self.cloneRepo(repo, $dlg.find(".branch-selection").val());
+                var value = $dlg.find("input.repo").val().trim();
+                
+                self.cloneRepo(value, repo, $dlg.find(".branch-selection").val(), $dlg.find("div.step1").find("input.target-path").val());
+                
                 Dialogs.cancelModalDialogIfOpen("github-access", "clone");
             }
         });
@@ -188,7 +202,15 @@ define(function (require, exports, module) {
     
     GitHubManager.prototype.init = function () {
         prefs.definePreference("token", "string", "");
-        
+        domain.exec("getMemory", false)
+        .done(function (memory) {
+            console.log(
+                "[brackets-simple-node] Memory: %d bytes free",
+                memory
+            );
+        }).fail(function (err) {
+            console.error("[brackets-simple-node] failed to run github-access.getMemory", err);
+        });
         var gh,
             self = new GitHubManager(),
             repo,
@@ -222,7 +244,7 @@ define(function (require, exports, module) {
                 
                 if (valid) {
                     var token = $dlg.find("input.oauth-token").val();
-                    
+                    globalToken = token;
                     gh = new Octokit({
                         token: token
                     });
