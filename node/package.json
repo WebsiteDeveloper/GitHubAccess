@@ -4,7 +4,8 @@
   "main": "octokit.js",
   "dependencies": {
     "octokit": "0.10.x",
-    "jquery": "*"
+    "jquery": "*",
+    "loadash": "*"
   },
   "author": "Bernhard Sirlinger"
 }
