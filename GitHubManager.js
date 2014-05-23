@@ -202,15 +202,7 @@ define(function (require, exports, module) {
     
     GitHubManager.prototype.init = function () {
         prefs.definePreference("token", "string", "");
-        domain.exec("getMemory", false)
-        .done(function (memory) {
-            console.log(
-                "[brackets-simple-node] Memory: %d bytes free",
-                memory
-            );
-        }).fail(function (err) {
-            console.error("[brackets-simple-node] failed to run github-access.getMemory", err);
-        });
+        
         var gh,
             self = new GitHubManager(),
             repo,
@@ -226,6 +218,7 @@ define(function (require, exports, module) {
                 token: temp
             });
             
+            globalToken = temp;
             self.openCloneDialog(gh, self);
             return;
         }

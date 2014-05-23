@@ -3,54 +3,46 @@
 var os      = require("os"),
     fs      = require("fs"),
     path    = require("path"),
-    $       = require("jquery"),
+    _       = require("lodash"),
     Octokit = require("octokit");
 
 var gh,
-    repo;
-/**
- * @private
- * Handler function for the simple.getMemory command.
- * @param {boolean} total If true, return total memory; if false, return free memory only.
- * @return {number} The amount of memory.
- */
-function cmdGetMemory(total) {
-    "use strict";
-    
-    if (total) {
-        return os.totalmem();
-    } else {
-        return os.freemem();
-    }
-}
+    repo,
+    base64Matcher = new RegExp("^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})$");
 
-function writeTree(branch, tree, directory) {
-    var i = 0;
-    
-    function writer(contents) {
-        console.log(path.join(directory, this.path));
-        
-        fs.open(path.join(directory, this.path), "w", "0666", function (err, fd) {
-            if (!err) {
-                var buffer = new Buffer(contents, 'base64');
-                
-                fs.write(fd, buffer, 0, buffer.length, null, function () {
-                    console.log(arguments);
+function writeTree(b, branch, tree, directory, callback) {
+    var i = 0,
+        helper = {
+            "j": 0,
+            "length": tree.length,
+            "callback": function () {
+                this.j++;
+            },
+            "writer": function (contents) {
+                fs.open(path.join(directory, this.path), "w", "0666", function (err, fd) {
+                    if (!err) {
+                        var encoding = (base64Matcher.test(contents)) ? "base64" : "utf-8";
+                        
+                        var buffer = new Buffer(contents, 'binary');
+                        
+                        fs.write(fd, buffer, 0, buffer.length, null, function () {
+                            (_.bind(helper.callback, helper))();
+                            fs.close(fd);
+                        });
+                    } else {
+                        console.log("Error");
+                    }
                 });
-            } else {
-                console.log(err);
             }
-        });
-    }
-    console.log(tree.length);
+        };
+    
     for (i = 0; i < tree.length; i++) {
-        console.log(i);
         if (tree[i].type === "blob") {
-            branch.contents(tree[i].path).then($.proxy(writer, tree[i]), function () {
-                console.log(arguments);
-            });
+            branch.read(tree[i].path, true)
+                .then(_.bind(helper.writer, tree[i]));
         } else {
             fs.mkdirSync(path.join(directory, tree[i].path));
+            helper.callback();
         }
     }
 }
@@ -67,8 +59,7 @@ function cmdCloneRepo(token, repoName, branch, targetDir, callback) {
     repo.git.getTree(branch, {
         recursive: true
     }).then(function (tree) {
-        callback(null, "Done");
-        writeTree(branch, tree, targetDir);
+        writeTree(repo.getBranch(branch), branch, tree, targetDir);
     }, function (err) {
         callback(arguments);
     });
@@ -84,19 +75,7 @@ function init(domainManager) {
     if (!domainManager.hasDomain("github-access")) {
         domainManager.registerDomain("github-access", {major: 0, minor: 1});
     }
-    domainManager.registerCommand(
-        "github-access",       // domain name
-        "getMemory",    // command name
-        cmdGetMemory,   // command handler function
-        false,          // this command is synchronous in Node
-        "Returns the total or free memory on the user's system in bytes",
-        [{name: "total", // parameters
-            type: "string",
-            description: "True to return total memory, false to return free memory"}],
-        [{name: "memory", // return values
-            type: "number",
-            description: "amount of memory in bytes"}]
-    );
+    
     domainManager.registerCommand(
         "github-access",       // domain name
         "cloneRepo",    // command name
