@@ -22,7 +22,7 @@
  */
 
 /*jslint sloppy: true, vars: true, plusplus: true, devel: true, nomen: true, indent: 4, maxerr: 100 */
-/*global define, $, brackets, Mustache*/
+/*global define, $, brackets, Mustache, Bloodhound*/
 
 define(function (require, exports, module) {
     var Dialogs             = brackets.getModule("widgets/Dialogs"),
@@ -45,59 +45,13 @@ define(function (require, exports, module) {
     function GitHubManager() {
     }
     
-    GitHubManager.prototype.targetPath = "";
-    
-    GitHubManager.prototype.writeTree = function (branch, tree, directory, progressCallback) {
-        var i = 0;
-        
-        function writer(contents) {
-            var file = FileSystem.getFileForPath(directory._path + this.path);
-            
-            file.write(contents);
-        
-            progressCallback();
-        }
-        
-        function writeDir(path) {
-            var dir = FileSystem.getDirectoryForPath(path);
-            
-            dir.create();
-            
-            progressCallback();
-        }
-        
-        for (i = 0; i < tree.length; i++) {
-            if (tree[i].type === "blob") {
-                branch.contents(tree[i].path).then($.proxy(writer, tree[i]), function () {
-                    console.log(arguments);
-                });
-            } else {
-                writeDir(directory._path + tree[i].path);
-            }
-        }
-    };
-    
     GitHubManager.prototype.cloneRepo = function (repoName, repo, branch, targetDir) {
-        domain.exec("cloneRepo", globalToken,repoName, branch, targetDir)
-        .done(function (result) {
-            console.log(result);
-        }).fail(function (err) {
-            console.error(err);
-        });
-        /*
-        repo.git.getTree(branch, {
-            recursive: true
-        }).then($.proxy(function (tree) {
-            
-            var length = tree.length,
-                i = 0,
-                dir = FileSystem.getDirectoryForPath(this.targetPath);
-            
-            this.writeTree(repo.getBranch(branch), tree, dir, function () {
-                i++;
-                console.log((i / length) * 100 + "%");
+        domain.exec("cloneRepo", globalToken, repoName, branch, targetDir)
+            .done(function (result) {
+                console.log(result);
+            }).fail(function (err) {
+                console.error(err);
             });
-        }, this));*/
     };
     
     GitHubManager.prototype.addSelectMenueForArray = function ($element, array) {
@@ -124,7 +78,15 @@ define(function (require, exports, module) {
         var templateVars,
             dlg,
             repo,
-            $dlg;
+            $dlg,
+            bloodhound = new Bloodhound({
+                local: prefs.get("rememberedRepos"),
+                datumTokenizer: function (d) {
+                    return Bloodhound.tokenizers.whitespace(d);
+                },
+                queryTokenizer: Bloodhound.tokenizers.whitespace
+            }),
+            promise = bloodhound.initialize();
         
         templateVars = JSON.parse(cloneDialogData);
         
@@ -132,13 +94,35 @@ define(function (require, exports, module) {
         
         $dlg = dlg.getElement();
         
+        promise.done(function () {
+            $dlg.find("input.repo").typeahead(null, {
+                name: "repo-hints",
+                source: function (query, cb) {
+                    bloodhound.get(query, function (r) {
+                        cb(r);
+                    });
+                },
+                displayKey: function (o) {
+                    return o;
+                },
+                highlight: true
+            });
+        });
+        
         $dlg.find("button.get-branches").on("click", function (event) {
-            var value = $dlg.find("input.repo").val().trim();
+            var value = $dlg.find(".repo.tt-input").val().trim();
             
             if (value !== "") {
                 repo = gh.getRepo(value.split("/")[0], value.split("/")[1]);
                 
                 repo.getBranches().then($.proxy(function (branches) {
+                    var temp = prefs.get("rememberedRepos");
+                    if (!_.contains(temp, value)) {
+                        temp.push(value);
+                    }
+                    
+                    prefs.set("rememberedRepos", temp);
+                    prefs.save();
                     branches = this.buildBranchArray(branches);
                     
                     var $step  = $dlg.find("div.step1"),
@@ -185,7 +169,7 @@ define(function (require, exports, module) {
             if (id === "cancel") {
                 Dialogs.cancelModalDialogIfOpen("github-access", "cancel");
             } else if (id === "clone") {
-                var value = $dlg.find("input.repo").val().trim();
+                var value = $dlg.find(".repo.tt-input").val().trim();
                 
                 self.cloneRepo(value, repo, $dlg.find(".branch-selection").val(), $dlg.find("div.step1").find("input.target-path").val());
                 
@@ -201,8 +185,6 @@ define(function (require, exports, module) {
     };
     
     GitHubManager.prototype.init = function () {
-        prefs.definePreference("token", "string", "");
-        
         var gh,
             self = new GitHubManager(),
             repo,
@@ -253,6 +235,9 @@ define(function (require, exports, module) {
             }
         });
     };
+    
+    prefs.definePreference("token", "string", "");
+    prefs.definePreference("rememberedRepos", "array", []);
     
     /*Exporting GitHubManager*/
     exports.GitHubManager = GitHubManager;

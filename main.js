@@ -34,6 +34,8 @@ define(function (require, exports, module) {
         GitHubManager       = require("GitHubManager").GitHubManager,
         KeyBindingManager   = brackets.getModule("command/KeyBindingManager");
     
+    require("thirdparty/bloodhound");
+    require("thirdparty/typeahead.jquery");
     require("thirdparty/chosen.jquery");
     
     AppInit.htmlReady(function () {
