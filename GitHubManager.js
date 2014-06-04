@@ -26,6 +26,7 @@
 
 define(function (require, exports, module) {
     var Dialogs             = brackets.getModule("widgets/Dialogs"),
+        StatusBar           = brackets.getModule("widgets/StatusBar"),
         FileSystem          = brackets.getModule("filesystem/FileSystem"),
         PreferencesManager  = brackets.getModule("preferences/PreferencesManager"),
         NodeDomain          = brackets.getModule("utils/NodeDomain"),
@@ -110,11 +111,19 @@ define(function (require, exports, module) {
         });
         
         $dlg.find("button.get-branches").on("click", function (event) {
+            $dlg.find("input.repo").typeahead("close");
             var value = $dlg.find(".repo.tt-input").val().trim();
             
             if (value !== "") {
-                repo = gh.getRepo(value.split("/")[0], value.split("/")[1]);
-                
+                try {
+                    $(".errors").html("");
+                    repo = gh.getRepo(value.split("/")[0], value.split("/")[1]);
+                } catch (e) {
+                    console.error(e.message);
+                    $(".errors").append("<div class='error'>Error: " + e.message + "       Repo must be in the Format (User/Repository) </div>");
+                    return;
+                }
+                StatusBar.showBusyIndicator(true);
                 repo.getBranches().then($.proxy(function (branches) {
                     var temp = prefs.get("rememberedRepos");
                     if (!_.contains(temp, value)) {
@@ -133,7 +142,7 @@ define(function (require, exports, module) {
                     $step.find("select.branch-selection").chosen();
                     
                     $input = $step.find("input.target-path");
-                    
+                    StatusBar.hideBusyIndicator();
                     $step.find("button.select-folder").on("click", function () {
                         FileSystem.showOpenDialog(false, true, "Choose target path", null, [], function (error, dir) {
                             if (!error && dir) {
@@ -157,10 +166,11 @@ define(function (require, exports, module) {
                     try {
                         message = JSON.parse(answer.error).message;
                     } catch (err) {
+                        console.error(err.message);
                         message = "An internal Error occured.";
                     }
                     
-                    $dlg.find(".errors").html("<div class='error'>Error: " + message + "</div>");
+                    $dlg.find(".errors").append("<div class='error'>Error: " + message + "</div>");
                 });
             }
         });

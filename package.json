@@ -3,7 +3,7 @@
     "title": "GitHubAccess",
     "description": "Allows you to clone any github repo to your local filesystem via Ctrl+Alt+G",
     "homepage": "https://github.com/WebsiteDeveloper/GitHubAccess",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "author": "Bernhard Sirlinger <bernhard@sirlinger.de> (https://github.com/WebsiteDeveloper)",
     "license": "MIT",
     "engines": {

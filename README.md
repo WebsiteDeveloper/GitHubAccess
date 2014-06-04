@@ -14,14 +14,18 @@ This extension uses the following open source components:
 
 ####Version
 
-#####0.3
+#####0.3.1
+* Add progress Indicator
+* Show certain errors which were not shown previously
+
+#####0.3.0
 * Add Binary files Handling
 * move Data handling to a Node process
 * include lodash in Node process
 * compress css
 * Add twitter typeahead for repository autocomplete
 
-#####0.2
+#####0.2.0
 * Update to work with brackets Sprint 38 and onwards
 * Use octokit.js
 * Change to Oauth token authentication
