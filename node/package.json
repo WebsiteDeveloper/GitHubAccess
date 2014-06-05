@@ -5,7 +5,7 @@
   "dependencies": {
     "octokit": "0.10.x",
     "jquery": "*",
-    "loadash": "*"
+    "lodash": "*"
   },
   "author": "Bernhard Sirlinger"
 }
