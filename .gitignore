@@ -11,7 +11,4 @@ Desktop.ini
 # Mac crap
 .DS_Store
 
-node/node_modules/.bin
-node/node_modules/jquery
-node/node_modules/lodash
-node/node_modules/octokit
+node/node_modules/
